@@ -1,0 +1,155 @@
+<?php
+
+/**
+ * @file
+ * clozeq question type for the Quiz module.
+ *
+ * Allows the creation of cloze questions, where one chooses
+ * missing information.
+ */
+/**
+ * Implements hook_help().
+ */
+function clozeq_help($path, $args) {
+  switch ($path) {
+    case 'admin/modules#description':
+      return t('clozeq question type for quiz module.');
+
+    case 'node/add#clozeq':
+    case 'admin/help#clozeq':
+      return t('A question type for the quiz module: allows you to create cloze type questions, where one chooses missing information.');
+
+    default:
+      break;
+  }
+}
+
+/**
+ * Implements hook_quiz_question_info().
+ */
+function clozeq_quiz_question_info() {
+  return array(
+    'clozeq' => array(
+      'name' => t('ClozeQ'),
+      'description' => t('Cloze question type for quiz module. A question type for the quiz module: allows you to create cloze type questions, where one chooses missing information.'),
+      'question provider' => 'clozeqQuestion',
+      'response provider' => 'clozeqResponse',
+      // All wrapper functions are in the quiz_question module.
+      'module' => 'quiz_question',
+    ),
+  );
+}
+
+/**
+ * global cache
+ */
+$ClozeQCache['popupHTML'] = false; //popup html has not been emitted
+$ClozeQCache['feedbackNdx'] = 0; //index of blank, used to match to proper feedback
+
+
+/**
+ * popup for displaying feedback.
+ */
+function clozeq_popupHTML($contents) {
+		
+		return '    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/octicons/2.2.0/octicons.min.css" type="text/css" />
+
+
+<style>
+
+   
+.js-modal-close {
+  font-size: 10px;
+
+  /* Take it out of the flow, and align to the top-left corner */
+  position: absolute;
+  top: -10px;
+  right: -10px;
+
+  /* Size it up */
+  width: 24px;
+  height: 24px;
+
+  /* Text-alignment */
+  text-align: center;
+
+  /* Cosmetics */
+  color: #eee;
+  border-width: 0;
+  border-radius: 100%;
+  background-color: black;
+}
+
+
+.clozeQpopup {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    width:450px;
+    max-width:100%;
+    background-color: white;
+    border-radius: 10%;
+    display: none;
+    min-height: 200px;
+    padding: 10px;
+    z-index: 99 !important;
+    -webkit-transform: translate(-50%, -50%);
+    transform: translate(-50%, -50%);
+    border: 1px solid green;
+	overflow-y: auto;
+}
+
+</style>
+
+
+
+
+
+<div id="clozeQPopup" class="clozeQpopup"><span style="font-size:200%; float:right;cursor: pointer;" onClick="jQuery(\'#clozeQPopup\').hide(); ">X</span><div  id="clozeQPopupTxt">' . $contents .'</div></div>';
+	}
+
+
+
+/**
+ * Implements hook_node_view_alter().
+ */
+function clozeq_node_view_alter(&$build)  {
+	global $user;
+
+	if ($build['#bundle'] == 'clozeq' && arg(2) =='quiz-results') {
+		
+		$feedbackText = '';
+		
+		global $ClozeQCache;
+		if (!$ClozeQCache['popupHTML']){
+			$ClozeQCache['popupHTML'] = true;
+			$feedbackText .= clozeq_popupHTML();
+		}
+			
+		$quizPath = drupal_get_path('module', 'quiz');
+		
+		$answerNdx = 0;  //index for this answer set
+		
+
+		$phrases = clozeqQuestion::getPhrasesFrom($build['body'][0]['#markup']); 
+		
+		// build feedback from phrases 
+		foreach($phrases as $phrase) { 
+			$feedbackText .= $phrase['prefix'];
+			$ndx = $ClozeQCache['feedbackNdx']; //global to display multiple clozeQ for quiz result 
+			$blankFeedback = isset($phrase['feedback']) ? t(str_replace('"', '&quot;', $phrase['feedback'])) : t('no feedback available');
+			$feedbackText .= "<div id='feedback$ndx' style='display:none'>$blankFeedback</div>";
+			$feedbackText .= "<span style='cursor: pointer; border-radius: 10px; border: 2px solid green;' onclick='jQuery(\"#clozeQPopupTxt\").html(jQuery(\"#feedback$ndx\").html());jQuery(\"#clozeQPopup\").show();'>";
+			$feedbackText .= $build['body']['#object']->answers[0]['answer'][$answerNdx]->answer;
+			$feedbackText .= '<img src='  . ($build['body']['#object']->answers[0]['answer'][$answerNdx++]->score 
+				? "/$quizPath/images/check_008000_64.png" :  "/$quizPath/images/times_ff0000_64.png") . '>';
+			$feedbackText .= '</span>';
+			$feedbackText .= $phrase['suffix'];	
+			$ClozeQCache['feedbackNdx']++;
+		}
+	
+		//alter markup now,  theme in the future
+		$build['body'][0]['#markup'] = $feedbackText;
+	}
+}
+

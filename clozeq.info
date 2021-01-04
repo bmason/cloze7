@@ -1,0 +1,10 @@
+name = Quiz - ClozeQ
+package = Quiz question
+description = Cloze question type for Quiz.
+core = 7.x
+dependencies[] = quiz
+dependencies[] = quiz_question
+
+files[] = clozeq.classes.inc
+files[] = clozeq.test
+
